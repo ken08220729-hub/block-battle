@@ -5,7 +5,13 @@ const path = require('path');
 
 const app = express();
 const server = http.createServer(app);
-const io = new Server(server);
+const io = new Server(server, {
+  cors: {
+    origin: ["http://localhost:8080", "http://127.0.0.1:8080"],
+    methods: ["GET", "POST"],
+    credentials: true
+  }
+});
 
 const PORT = process.env.PORT || 3000;
 
