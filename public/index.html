@@ -1,0 +1,250 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>1v1 方塊對戰</title>
+    <style>
+        body { margin: 0; padding: 0; background: #222; font-family: sans-serif; overflow: hidden; color: white; user-select: none; }
+        #overlay { position: absolute; top: 0; left: 0; width: 100vw; height: 100vh; background: #555; z-index: 100; display: flex; flex-direction: column; justify-content: center; align-items: center; }
+        .hidden { display: none !important; }
+        #gameUI { position: relative; width: 800px; height: 500px; margin: 50px auto; background: #333; box-shadow: 0 0 20px rgba(0,0,0,0.5); }
+        canvas { position: absolute; top: 0; left: 0; pointer-events: none; }
+        
+        .block { position: absolute; width: 60px; height: 60px; background: #ffcc00; color: #000; font-size: 32px; font-weight: bold; display: flex; justify-content: center; align-items: center; border: 4px solid #fff; cursor: pointer; top: 50px; border-radius: 8px; box-shadow: 0 5px 0 #b38f00; transition: transform 0.1s; }
+        .block:active { transform: translateY(5px); box-shadow: 0 0 0 #b38f00; }
+        .block.locked { background: #555; border-color: #888; box-shadow: 0 5px 0 #333; cursor: not-allowed; }
+        .block.enemy { cursor: default; }
+        .block.enemy:active { transform: none; box-shadow: 0 5px 0 #b38f00; }
+        
+        #myBlock { left: 170px; }
+        #enemyBlock { right: 170px; }
+        
+        .info { position: absolute; top: 130px; text-align: center; width: 100px; }
+        #myInfo { left: 150px; }
+        #enemyInfo { right: 150px; }
+        
+        .bar-bg { background: #555; width: 100%; height: 15px; border-radius: 10px; overflow: hidden; margin-top: 5px; border: 1px solid #fff; }
+        .bar-hp { background: #ff4444; height: 100%; width: 100%; transition: width 0.2s; }
+        .shield-text { color: #00eeff; font-size: 12px; font-weight: bold; margin-top: 2px;}
+        
+        #hud { position: absolute; top: 10px; left: 10px; font-size: 18px; }
+        
+        #upgradeBtn { position: absolute; bottom: 20px; left: 50%; transform: translateX(-50%); padding: 10px 20px; font-size: 18px; cursor: pointer; background: #4caf50; border: none; color: white; border-radius: 5px; }
+        #upgradeMenu { position: absolute; bottom: 70px; left: 50%; transform: translateX(-50%); background: rgba(0,0,0,0.8); padding: 15px; border-radius: 10px; border: 2px solid #fff; display: flex; flex-direction: column; gap: 10px; }
+        .upg-item { background: #222; padding: 10px; cursor: pointer; text-align: center; border: 1px solid #555; border-radius: 5px;}
+        .upg-item:hover { background: #444; }
+
+        input, button { font-size: 18px; padding: 5px; }
+    </style>
+    <script src="/socket.io/socket.io.js"></script>
+</head>
+<body>
+
+    <div id="overlay">
+        <h1 id="overlayText">載入中...</h1>
+        <div id="nameInputBox" class="hidden">
+            <input type="text" id="playerName" placeholder="輸入名稱" maxlength="10">
+            <button onclick="submitName()">確定</button>
+        </div>
+    </div>
+
+    <div id="gameUI">
+        <div id="hud">金幣: <span id="myGold">0</span> | 階級: <span id="myTier">1</span></div>
+        
+        <div id="myBlock" class="block" onclick="clickBlock()">?</div>
+        <div id="enemyBlock" class="block enemy">?</div>
+
+        <div id="myInfo" class="info">
+            <div id="myName">Name</div>
+            <div class="bar-bg"><div id="myHpBar" class="bar-hp"></div></div>
+            <div id="myHpText">200/200</div>
+            <div id="myShield" class="shield-text"></div>
+        </div>
+        <div id="enemyInfo" class="info">
+            <div id="enemyName">Name</div>
+            <div class="bar-bg"><div id="enemyHpBar" class="bar-hp"></div></div>
+            <div id="enemyHpText">200/200</div>
+            <div id="enemyShield" class="shield-text"></div>
+        </div>
+
+        <canvas id="ctx" width="800" height="500"></canvas>
+
+        <button id="upgradeBtn" onclick="toggleMenu()">強化選單</button>
+        <div id="upgradeMenu" class="hidden">
+            <div class="upg-item" onclick="buy('hp')">城堡生命 +50 (20金幣)</div>
+            <div class="upg-item" onclick="buy('minion')">召喚小人 (2金幣)</div>
+        </div>
+    </div>
+
+    <script>
+        const socket = io();
+        const canvas = document.getElementById('ctx');
+        const ctx = canvas.getContext('2d');
+        let mySlot = null;
+        let currentState = null;
+
+        // UI 元件
+        const overlay = document.getElementById('overlay');
+        const overlayText = document.getElementById('overlayText');
+        const nameInputBox = document.getElementById('nameInputBox');
+        
+        // 坐標轉換 (世界坐標 0~150，畫布上城堡分別位於 x=200 與 x=600)
+        // 自己的城堡永遠在畫面上 x=200 的位置
+        function worldToCanvas(x) {
+            if (mySlot === 1) return 200 + (x / 150) * 400;
+            else return 600 - (x / 150) * 400; // 視角翻轉
+        }
+
+        socket.on('full', () => {
+            overlayText.innerText = '暫時滿人';
+            overlay.classList.remove('hidden');
+        });
+
+        socket.on('init', (data) => {
+            mySlot = data.slot;
+        });
+
+        socket.on('gameOver', (winner) => {
+            overlayText.innerText = winner + ' 獲勝！';
+            overlay.classList.remove('hidden');
+            nameInputBox.classList.add('hidden');
+        });
+
+        socket.on('stateUpdate', (state) => {
+            currentState = state;
+            updateUI();
+        });
+
+        function submitName() {
+            const name = document.getElementById('playerName').value.trim();
+            if (name) {
+                socket.emit('setName', name);
+                overlayText.innerText = '等待對手...';
+                nameInputBox.classList.add('hidden');
+            }
+        }
+
+        function clickBlock() {
+            socket.emit('hitBlock');
+        }
+
+        function toggleMenu() {
+            document.getElementById('upgradeMenu').classList.toggle('hidden');
+        }
+
+        function buy(type) {
+            socket.emit('buyUpgrade', type);
+            document.getElementById('upgradeMenu').classList.add('hidden');
+        }
+
+        function updateUI() {
+            if (!currentState || !mySlot) return;
+
+            // 狀態處理
+            if (currentState.status === 'waiting') {
+                overlayText.innerText = '等待玩家加入...';
+                overlay.classList.remove('hidden');
+                nameInputBox.classList.add('hidden');
+            } else if (currentState.status === 'naming') {
+                if (!currentState.players[mySlot].name) {
+                    overlayText.innerText = '請輸入名稱';
+                    nameInputBox.classList.remove('hidden');
+                }
+                overlay.classList.remove('hidden');
+            } else if (currentState.status === 'playing') {
+                overlay.classList.add('hidden');
+            }
+
+            const me = currentState.players[mySlot];
+            const enemy = currentState.players[mySlot === 1 ? 2 : 1];
+
+            // 資訊列
+            document.getElementById('myGold').innerText = me.gold;
+            document.getElementById('myTier').innerText = me.tier;
+            document.getElementById('myName').innerText = me.name;
+            document.getElementById('enemyName').innerText = enemy.name;
+
+            // 血量與護盾
+            document.getElementById('myHpText').innerText = `${Math.floor(me.hp)}/${me.maxHp}`;
+            document.getElementById('myHpBar').style.width = `${Math.max(0, (me.hp/me.maxHp)*100)}%`;
+            document.getElementById('myShield').innerText = me.shield > 0 ? `護盾: ${me.shield}` : '';
+
+            document.getElementById('enemyHpText').innerText = `${Math.floor(enemy.hp)}/${enemy.maxHp}`;
+            document.getElementById('enemyHpBar').style.width = `${Math.max(0, (enemy.hp/enemy.maxHp)*100)}%`;
+            document.getElementById('enemyShield').innerText = enemy.shield > 0 ? `護盾: ${enemy.shield}` : '';
+
+            // 方塊冷卻/封鎖狀態
+            const now = Date.now();
+            const myBlock = document.getElementById('myBlock');
+            if (now < me.cooldownUntil || now < me.blockedUntil) {
+                myBlock.classList.add('locked');
+                myBlock.innerText = now < me.blockedUntil ? 'X' : '...';
+            } else {
+                myBlock.classList.remove('locked');
+                myBlock.innerText = '?';
+                // 階級顏色
+                myBlock.style.background = me.tier === 1 ? '#ffcc00' : (me.tier === 2 ? '#ff6600' : '#ff0044');
+            }
+        }
+
+        function drawGame() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            if (!currentState || currentState.status !== 'playing') {
+                requestAnimationFrame(drawGame);
+                return;
+            }
+
+            // 中間直線
+            ctx.strokeStyle = '#666';
+            ctx.lineWidth = 2;
+            ctx.beginPath();
+            ctx.moveTo(400, 0);
+            ctx.lineTo(400, 500);
+            ctx.stroke();
+
+            // 畫城堡 (位於底部)
+            ctx.fillStyle = '#4a90e2'; // 自己的城堡顏色
+            ctx.fillRect(160, 350, 80, 100);
+            ctx.fillStyle = '#e24a4a'; // 敵人的城堡顏色
+            ctx.fillRect(560, 350, 80, 100);
+
+            // 繪製實體
+            currentState.entities.minions.forEach(m => {
+                let cx = worldToCanvas(m.x);
+                ctx.fillStyle = m.owner === mySlot ? '#88ccff' : '#ff8888';
+                ctx.fillRect(cx - 5, 430, 10, 20); // 小人
+            });
+
+            currentState.entities.projectiles.forEach(p => {
+                let cx = worldToCanvas(p.x);
+                if (p.type === 'knife') {
+                    ctx.fillStyle = '#fff';
+                    ctx.fillRect(cx - 8, 390, 16, 4);
+                } else if (p.type === 'bomb') {
+                    ctx.fillStyle = '#000';
+                    ctx.beginPath();
+                    ctx.arc(cx, 380, 8, 0, Math.PI*2);
+                    ctx.fill();
+                    // 炸彈引信
+                    ctx.fillStyle = 'red';
+                    ctx.fillRect(cx-2, 370, 4, 4);
+                } else if (p.type === 'nuke') {
+                    ctx.fillStyle = '#ff00ff';
+                    ctx.beginPath();
+                    ctx.arc(cx, 360, 15, 0, Math.PI*2);
+                    ctx.fill();
+                    ctx.fillStyle = 'yellow';
+                    ctx.font = '10px Arial';
+                    ctx.fillText('☢', cx-4, 364);
+                }
+            });
+
+            requestAnimationFrame(drawGame);
+        }
+
+        // 啟動渲染迴圈
+        drawGame();
+    </script>
+</body>
+</html>
