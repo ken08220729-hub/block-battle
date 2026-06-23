@@ -3,39 +3,55 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>1v1 方塊對戰</title>
+    <title>1v1 方塊對戰 — 全網流暢重製版</title>
     <style>
-        body { margin: 0; padding: 0; background: #222; font-family: sans-serif; overflow: hidden; color: white; user-select: none; }
-        #overlay { position: absolute; top: 0; left: 0; width: 100vw; height: 100vh; background: #555; z-index: 100; display: flex; flex-direction: column; justify-content: center; align-items: center; }
-        .hidden { display: none !important; }
-        #gameUI { position: relative; width: 800px; height: 500px; margin: 50px auto; background: #333; box-shadow: 0 0 20px rgba(0,0,0,0.5); }
-        canvas { position: absolute; top: 0; left: 0; pointer-events: none; }
+        body { margin: 0; padding: 0; background: #1a1a1a; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; overflow: hidden; color: white; user-select: none; }
         
-        .block { position: absolute; width: 60px; height: 60px; background: #ffcc00; color: #000; font-size: 32px; font-weight: bold; display: flex; justify-content: center; align-items: center; border: 4px solid #fff; cursor: pointer; top: 50px; border-radius: 8px; box-shadow: 0 5px 0 #b38f00; transition: transform 0.1s; }
-        .block:active { transform: translateY(5px); box-shadow: 0 0 0 #b38f00; }
-        .block.locked { background: #555; border-color: #888; box-shadow: 0 5px 0 #333; cursor: not-allowed; }
+        /* 基礎全螢幕蓋板 */
+        #overlay { position: absolute; top: 0; left: 0; width: 100vw; height: 100vh; background: #555; z-index: 100; display: flex; flex-direction: column; justify-content: center; align-items: center; }
+        
+        /* 全螢幕大獲勝畫面 */
+        #victoryOverlay { position: absolute; top: 0; left: 0; width: 100vw; height: 100vh; background: rgba(0, 0, 0, 0.85); z-index: 200; display: flex; flex-direction: column; justify-content: center; align-items: center; }
+        #victoryText { font-size: 64px; font-weight: 900; color: #ffcc00; text-shadow: 0 0 30px #ffcc00; animation: pulse 1.5s infinite alternate; }
+        
+        @keyframes pulse { from { transform: scale(1); } to { transform: scale(1.1); } }
+        .hidden { display: none !important; }
+        
+        #gameUI { position: relative; width: 800px; height: 500px; margin: 40px auto; background: #2b2b2b; border-radius: 12px; box-shadow: 0 10px 30px rgba(0,0,0,0.7); border: 2px solid #444; }
+        canvas { position: absolute; top: 0; left: 0; pointer-events: none; z-index: 2; }
+        
+        /* 問號方塊精修樣式 */
+        .block { position: absolute; width: 64px; height: 64px; color: #fff; font-size: 36px; font-weight: 900; display: flex; justify-content: center; align-items: center; border: 3px solid #fff; cursor: pointer; top: 50px; border-radius: 12px; box-shadow: 0 6px 0 rgba(0,0,0,0.4); text-shadow: 2px 2px 4px rgba(0,0,0,0.5); z-index: 10; transition: transform 0.05s; }
+        .block:active { transform: translateY(4px); box-shadow: 0 2px 0 rgba(0,0,0,0.4); }
+        .block.locked { cursor: not-allowed; }
         .block.enemy { cursor: default; }
-        .block.enemy:active { transform: none; box-shadow: 0 5px 0 #b38f00; }
+        .block.enemy:active { transform: none; box-shadow: 0 6px 0 rgba(0,0,0,0.4); }
         
         #myBlock { left: 170px; }
         #enemyBlock { right: 170px; }
         
-        .info { position: absolute; top: 130px; text-align: center; width: 100px; }
-        #myInfo { left: 150px; }
-        #enemyInfo { right: 150px; }
+        /* 血量城堡數據排版 */
+        .info { position: absolute; top: 135px; text-align: center; width: 130px; z-index: 10; }
+        #myInfo { left: 137px; }
+        #enemyInfo { right: 137px; }
         
-        .bar-bg { background: #555; width: 100%; height: 15px; border-radius: 10px; overflow: hidden; margin-top: 5px; border: 1px solid #fff; }
-        .bar-hp { background: #ff4444; height: 100%; width: 100%; transition: width 0.2s; }
-        .shield-text { color: #00eeff; font-size: 12px; font-weight: bold; margin-top: 2px;}
+        .bar-bg { background: #444; width: 100%; height: 14px; border-radius: 8px; overflow: hidden; margin-top: 6px; border: 1.5px solid #fff; box-shadow: inset 0 2px 4px rgba(0,0,0,0.5); }
+        .bar-hp { background: #ff4444; height: 100%; width: 100%; transition: width 0.1s linear; }
+        .shield-text { color: #00eeff; font-size: 13px; font-weight: bold; margin-top: 4px; text-shadow: 0 0 4px #00eeff; }
+        .player-name { font-size: 16px; font-weight: bold; max-width: 130px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
         
-        #hud { position: absolute; top: 10px; left: 10px; font-size: 18px; }
+        #hud { position: absolute; top: 15px; left: 20px; font-size: 20px; font-weight: bold; background: rgba(0,0,0,0.4); padding: 5px 15px; border-radius: 20px; border: 1px solid #555; z-index: 10; }
         
-        #upgradeBtn { position: absolute; bottom: 20px; left: 50%; transform: translateX(-50%); padding: 10px 20px; font-size: 18px; cursor: pointer; background: #4caf50; border: none; color: white; border-radius: 5px; }
-        #upgradeMenu { position: absolute; bottom: 70px; left: 50%; transform: translateX(-50%); background: rgba(0,0,0,0.8); padding: 15px; border-radius: 10px; border: 2px solid #fff; display: flex; flex-direction: column; gap: 10px; }
-        .upg-item { background: #222; padding: 10px; cursor: pointer; text-align: center; border: 1px solid #555; border-radius: 5px;}
-        .upg-item:hover { background: #444; }
+        #upgradeBtn { position: absolute; bottom: 20px; left: 50%; transform: translateX(-50%); padding: 10px 25px; font-size: 16px; font-weight: bold; cursor: pointer; background: #27ae60; border: none; color: white; border-radius: 25px; box-shadow: 0 4px 10px rgba(0,0,0,0.3); z-index: 10; transition: 0.2s; }
+        #upgradeBtn:hover { background: #2ecc71; }
+        #upgradeMenu { position: absolute; bottom: 75px; left: 50%; transform: translateX(-50%); background: rgba(20,20,20,0.95); padding: 12px; border-radius: 12px; border: 2px solid #555; display: flex; flex-direction: column; gap: 8px; z-index: 15; width: 180px; box-shadow: 0 10px 25px rgba(0,0,0,0.5); }
+        .upg-item { background: #333; padding: 10px; cursor: pointer; text-align: center; border: 1px solid #444; border-radius: 6px; font-size: 14px; transition: 0.2s; }
+        .upg-item:hover { background: #444; border-color: #aaa; }
 
-        input, button { font-size: 18px; padding: 5px; }
+        input, button { font-size: 16px; padding: 6px 12px; border-radius: 6px; border: none; }
+        input[type="text"] { margin-right: 8px; outline: none; }
+        button { background: #2980b9; color: white; cursor: pointer; font-weight: bold; }
+        button:hover { background: #3498db; }
     </style>
     <script src="/socket.io/socket.io.js"></script>
 </head>
@@ -44,25 +60,29 @@
     <div id="overlay">
         <h1 id="overlayText">載入中...</h1>
         <div id="nameInputBox" class="hidden">
-            <input type="text" id="playerName" placeholder="輸入名稱" maxlength="10">
-            <button onclick="submitName()">確定</button>
+            <input type="text" id="playerName" placeholder="輸入您的名稱" maxlength="10">
+            <button onclick="submitName()">加入對戰</button>
         </div>
     </div>
 
+    <div id="victoryOverlay" class="hidden">
+        <div id="victoryText">某某某 獲得勝利！</div>
+    </div>
+
     <div id="gameUI">
-        <div id="hud">金幣: <span id="myGold">0</span> | 階級: <span id="myTier">1</span></div>
+        <div id="hud">🪙 金幣: <span id="myGold">0</span> | 階級: <span id="myTier">1</span></div>
         
         <div id="myBlock" class="block" onclick="clickBlock()">?</div>
         <div id="enemyBlock" class="block enemy">?</div>
 
         <div id="myInfo" class="info">
-            <div id="myName">Name</div>
+            <div id="myName" class="player-name">我方玩家</div>
             <div class="bar-bg"><div id="myHpBar" class="bar-hp"></div></div>
             <div id="myHpText">200/200</div>
             <div id="myShield" class="shield-text"></div>
         </div>
         <div id="enemyInfo" class="info">
-            <div id="enemyName">Name</div>
+            <div id="enemyName" class="player-name">敵方對手</div>
             <div class="bar-bg"><div id="enemyHpBar" class="bar-hp"></div></div>
             <div id="enemyHpText">200/200</div>
             <div id="enemyShield" class="shield-text"></div>
@@ -70,10 +90,10 @@
 
         <canvas id="ctx" width="800" height="500"></canvas>
 
-        <button id="upgradeBtn" onclick="toggleMenu()">強化選單</button>
+        <button id="upgradeBtn" onclick="toggleMenu()">🔧 基地強化</button>
         <div id="upgradeMenu" class="hidden">
-            <div class="upg-item" onclick="buy('hp')">城堡生命 +50 (20金幣)</div>
-            <div class="upg-item" onclick="buy('minion')">召喚小人 (2金幣)</div>
+            <div class="upg-item" onclick="buy('hp')">🏰 城堡生命 +50<br><span style="color:#f1c40f;font-size:12px;">(花費 20金幣)</span></div>
+            <div class="upg-item" onclick="buy('minion')">🏃 召喚1個小人<br><span style="color:#f1c40f;font-size:12px;">(花費 2金幣)</span></div>
         </div>
     </div>
 
@@ -83,22 +103,18 @@
         const ctx = canvas.getContext('2d');
         let mySlot = null;
         let currentState = null;
+        let floatingTexts = []; // 用於存放彈出文字動畫物件
 
-        // UI 元件
-        const overlay = document.getElementById('overlay');
-        const overlayText = document.getElementById('overlayText');
-        const nameInputBox = document.getElementById('nameInputBox');
-        
-        // 坐標轉換 (世界坐標 0~150，畫布上城堡分別位於 x=200 與 x=600)
-        // 自己的城堡永遠在畫面上 x=200 的位置
-        function worldToCanvas(x) {
-            if (mySlot === 1) return 200 + (x / 150) * 400;
-            else return 600 - (x / 150) * 400; // 視角翻轉
+        // 決定問號方塊一、二、三階的專屬配色
+        function getTierColor(tier) {
+            if (tier === 2) return '#9b59b6'; // 二階：紫色
+            if (tier === 3) return '#f1c40f'; // 三階：黃色
+            return '#2980b9'; // 一階：藍色
         }
 
         socket.on('full', () => {
-            overlayText.innerText = '暫時滿人';
-            overlay.classList.remove('hidden');
+            document.getElementById('overlayText').innerText = '暫時滿人';
+            document.getElementById('overlay').classList.remove('hidden');
         });
 
         socket.on('init', (data) => {
@@ -106,9 +122,28 @@
         });
 
         socket.on('gameOver', (winner) => {
-            overlayText.innerText = winner + ' 獲勝！';
-            overlay.classList.remove('hidden');
-            nameInputBox.classList.add('hidden');
+            const vicOverlay = document.getElementById('victoryOverlay');
+            document.getElementById('victoryText').innerText = `🏆 ${winner} 獲得勝利！`;
+            vicOverlay.classList.remove('hidden');
+            setTimeout(() => {
+                vicOverlay.classList.add('hidden');
+            }, 5000);
+        });
+
+        // 接收金幣產生的事件，建立彈出跳動效果 (+X🪙)
+        socket.on('goldEffect', (data) => {
+            if (!mySlot) return;
+            const isMe = (data.slot === mySlot);
+            // 根據是否為自己，鎖定畫面上左邊或右邊方塊的中央坐標
+            const startX = isMe ? 202 : 598; 
+            const startY = 45; 
+            floatingTexts.push({
+                x: startX,
+                y: startY,
+                text: `+${data.amount} 🪙`,
+                alpha: 1.0,
+                velocity: -1.8
+            });
         });
 
         socket.on('stateUpdate', (state) => {
@@ -120,8 +155,8 @@
             const name = document.getElementById('playerName').value.trim();
             if (name) {
                 socket.emit('setName', name);
-                overlayText.innerText = '等待對手...';
-                nameInputBox.classList.add('hidden');
+                document.getElementById('overlayText').innerText = '正在等待對手就位...';
+                document.getElementById('nameInputBox').classList.add('hidden');
             }
         }
 
@@ -138,18 +173,29 @@
             document.getElementById('upgradeMenu').classList.add('hidden');
         }
 
+        // 把世界座標(0~150公尺)投射到畫布寬度上 (200px~600px間)
+        function worldToCanvas(x) {
+            if (mySlot === 1) return 200 + (x / 150) * 400;
+            else return 600 - (x / 150) * 400; // 自動幫2P作視角鏡像反轉
+        }
+
         function updateUI() {
             if (!currentState || !mySlot) return;
 
-            // 狀態處理
+            const overlay = document.getElementById('overlay');
+            const nameInputBox = document.getElementById('nameInputBox');
+
             if (currentState.status === 'waiting') {
-                overlayText.innerText = '等待玩家加入...';
+                document.getElementById('overlayText').innerText = '等候其他玩家加入連線...';
                 overlay.classList.remove('hidden');
                 nameInputBox.classList.add('hidden');
             } else if (currentState.status === 'naming') {
                 if (!currentState.players[mySlot].name) {
-                    overlayText.innerText = '請輸入名稱';
+                    document.getElementById('overlayText').innerText = '戰役即將開始，請給城堡命名：';
                     nameInputBox.classList.remove('hidden');
+                } else {
+                    document.getElementById('overlayText').innerText = '正在等待對手命名...';
+                    nameInputBox.classList.add('hidden');
                 }
                 overlay.classList.remove('hidden');
             } else if (currentState.status === 'playing') {
@@ -159,91 +205,230 @@
             const me = currentState.players[mySlot];
             const enemy = currentState.players[mySlot === 1 ? 2 : 1];
 
-            // 資訊列
             document.getElementById('myGold').innerText = me.gold;
             document.getElementById('myTier').innerText = me.tier;
-            document.getElementById('myName').innerText = me.name;
-            document.getElementById('enemyName').innerText = enemy.name;
+            document.getElementById('myName').innerText = me.name || "我方玩家";
+            document.getElementById('enemyName').innerText = enemy.name || "敵方對手";
 
-            // 血量與護盾
             document.getElementById('myHpText').innerText = `${Math.floor(me.hp)}/${me.maxHp}`;
             document.getElementById('myHpBar').style.width = `${Math.max(0, (me.hp/me.maxHp)*100)}%`;
-            document.getElementById('myShield').innerText = me.shield > 0 ? `護盾: ${me.shield}` : '';
+            document.getElementById('myShield').innerText = me.shield > 0 ? `🛡️ 護盾生命值: ${me.shield}` : '';
 
             document.getElementById('enemyHpText').innerText = `${Math.floor(enemy.hp)}/${enemy.maxHp}`;
             document.getElementById('enemyHpBar').style.width = `${Math.max(0, (enemy.hp/enemy.maxHp)*100)}%`;
-            document.getElementById('enemyShield').innerText = enemy.shield > 0 ? `護盾: ${enemy.shield}` : '';
+            document.getElementById('enemyShield').innerText = enemy.shield > 0 ? `🛡️ 護盾生命值: ${enemy.shield}` : '';
 
-            // 方塊冷卻/封鎖狀態
+            // 方塊冷卻與封鎖渲染邏輯 (順時針灰色倒計時圓弧)
             const now = Date.now();
-            const myBlock = document.getElementById('myBlock');
-            if (now < me.cooldownUntil || now < me.blockedUntil) {
-                myBlock.classList.add('locked');
-                myBlock.innerText = now < me.blockedUntil ? 'X' : '...';
+            updateBlockOverlay('myBlock', me, now);
+            updateBlockOverlay('enemyBlock', enemy, now);
+        }
+
+        function updateBlockOverlay(elementId, player, now) {
+            const el = document.getElementById(elementId);
+            const baseColor = getTierColor(player.tier);
+            
+            if (now < player.blockedUntil) {
+                el.classList.add('locked');
+                el.style.background = '#555555';
+                el.innerText = '🔒';
+            } else if (now < player.cooldownUntil) {
+                el.classList.add('locked');
+                el.innerText = '?';
+                const remaining = player.cooldownUntil - now;
+                const progress = Math.max(0, Math.min(1, remaining / player.cooldownDuration));
+                // 利用 CSS Conic-gradient 完美實現順時針灰色倒計時遮罩
+                el.style.background = `conic-gradient(rgba(100, 100, 100, 0.75) ${progress * 360}deg, ${baseColor} ${progress * 360}deg)`;
             } else {
-                myBlock.classList.remove('locked');
-                myBlock.innerText = '?';
-                // 階級顏色
-                myBlock.style.background = me.tier === 1 ? '#ffcc00' : (me.tier === 2 ? '#ff6600' : '#ff0044');
+                el.classList.remove('locked');
+                el.style.background = baseColor;
+                el.innerText = '?';
             }
         }
 
+        // 精細繪製高階城堡
+        function drawCastle(x, isEnemy) {
+            ctx.save();
+            ctx.fillStyle = isEnemy ? '#c0392b' : '#2980b9';
+            ctx.strokeStyle = '#222';
+            ctx.lineWidth = 3;
+            
+            // 主體塔樓
+            ctx.fillRect(x, 350, 80, 100);
+            ctx.strokeRect(x, 350, 80, 100);
+            
+            // 城牆磚線紋路
+            ctx.strokeStyle = 'rgba(0,0,0,0.15)';
+            ctx.lineWidth = 2;
+            for(let i=1; i<4; i++){
+                ctx.beginPath();
+                ctx.moveTo(x, 350 + i*25); ctx.lineTo(x+80, 350 + i*25);
+                ctx.stroke();
+            }
+
+            // 頂部凹凸城垛 (Battlements)
+            ctx.fillStyle = isEnemy ? '#962d22' : '#1f618d';
+            ctx.fillRect(x, 335, 16, 15); ctx.strokeRect(x, 335, 16, 15);
+            ctx.fillRect(x + 32, 335, 16, 15); ctx.strokeRect(x + 32, 335, 16, 15);
+            ctx.fillRect(x + 64, 335, 16, 15); ctx.strokeRect(x + 64, 335, 16, 15);
+
+            // 城堡大門
+            ctx.fillStyle = '#6e473b';
+            ctx.fillRect(x + 25, 410, 30, 40);
+            ctx.strokeRect(x + 25, 410, 30, 40);
+            ctx.restore();
+        }
+
+        // 主畫面 60FPS 渲染渲染核心
         function drawGame() {
             ctx.clearRect(0, 0, canvas.width, canvas.height);
+            
             if (!currentState || currentState.status !== 'playing') {
                 requestAnimationFrame(drawGame);
                 return;
             }
 
-            // 中間直線
-            ctx.strokeStyle = '#666';
-            ctx.lineWidth = 2;
-            ctx.beginPath();
-            ctx.moveTo(400, 0);
-            ctx.lineTo(400, 500);
-            ctx.stroke();
+            // 1. 中間邊界分隔線
+            ctx.strokeStyle = '#444';
+            ctx.lineWidth = 3;
+            ctx.setLineDash([10, 10]);
+            ctx.beginPath(); ctx.moveTo(400, 0); ctx.lineTo(400, 500); ctx.stroke();
+            ctx.setLineDash([]);
 
-            // 畫城堡 (位於底部)
-            ctx.fillStyle = '#4a90e2'; // 自己的城堡顏色
-            ctx.fillRect(160, 350, 80, 100);
-            ctx.fillStyle = '#e24a4a'; // 敵人的城堡顏色
-            ctx.fillRect(560, 350, 80, 100);
+            // 2. 繪製左右兩座精緻城堡模型
+            drawCastle(160, false);
+            drawCastle(560, true);
 
-            // 繪製實體
+            // 3. 渲染防禦機槍外觀 (若有抽到機槍則部署在城堡頂端)
+            const p1Data = currentState.players[1];
+            const p2Data = currentState.players[2];
+            const myData = currentState.players[mySlot];
+            const enemyData = currentState.players[mySlot === 1 ? 2 : 1];
+
+            if (myData.machineGuns > 0) {
+                ctx.fillStyle = '#7f8c8d';
+                ctx.fillRect(225, 320, 25, 12); // 槍身
+                ctx.fillRect(245, 324, 20, 4);  // 槍管
+            }
+            if (enemyData.machineGuns > 0) {
+                ctx.fillStyle = '#7f8c8d';
+                ctx.fillRect(550, 320, 25, 12);
+                ctx.fillRect(535, 324, 20, 4);
+            }
+
+            // 4. 渲染防護罩力場圈
+            if (myData.shield > 0) {
+                ctx.strokeStyle = myData.shield > 10 ? 'rgba(241, 194, 15, 0.6)' : 'rgba(0, 238, 255, 0.5)';
+                ctx.lineWidth = myData.shield > 10 ? 6 : 3;
+                ctx.beginPath(); ctx.arc(200, 400, 75, -Math.PI/2, Math.PI/2, mySlot===2); ctx.stroke();
+            }
+            if (enemyData.shield > 0) {
+                ctx.strokeStyle = enemyData.shield > 10 ? 'rgba(241, 194, 15, 0.6)' : 'rgba(0, 238, 255, 0.5)';
+                ctx.lineWidth = enemyData.shield > 10 ? 6 : 3;
+                ctx.beginPath(); ctx.arc(600, 400, 75, -Math.PI/2, Math.PI/2, mySlot===1); ctx.stroke();
+            }
+
+            // 5. 繪製小人 (包含移動及高頻率揮刀攻擊動畫)
             currentState.entities.minions.forEach(m => {
                 let cx = worldToCanvas(m.x);
-                ctx.fillStyle = m.owner === mySlot ? '#88ccff' : '#ff8888';
-                ctx.fillRect(cx - 5, 430, 10, 20); // 小人
+                let isMyMinion = (m.owner === mySlot);
+                
+                ctx.save();
+                // 畫小人身體主體
+                ctx.fillStyle = isMyMinion ? '#3498db' : '#e74c3c';
+                ctx.fillRect(cx - 6, 425, 12, 25);
+                
+                // 畫小人頭部
+                ctx.fillStyle = '#f39c12';
+                ctx.beginPath(); ctx.arc(cx, 417, 6, 0, Math.PI*2); ctx.fill();
+
+                // 揮刀攻擊動畫
+                if (m.state === 'attack') {
+                    // 利用正弦函數讓武器在短時間內快速抽動，模擬高頻敲擊砍殺動作
+                    let attackSwing = Math.sin(Date.now() * 0.04) * 12;
+                    ctx.strokeStyle = '#f1f2f6';
+                    ctx.lineWidth = 3;
+                    ctx.beginPath();
+                    ctx.moveTo(cx, 425);
+                    // 根據朝向動態偏轉武器尖端
+                    let directionMultiplier = (m.owner === 1) ? 1 : -1;
+                    if(mySlot === 2) directionMultiplier *= -1; // 視角鏡像轉置
+                    
+                    ctx.lineTo(cx + (12 + attackSwing) * directionMultiplier, 425 - Math.abs(attackSwing));
+                    ctx.stroke();
+                } else {
+                    // 平常走路狀態隨意配一把小鐵劍
+                    ctx.strokeStyle = '#7f8c8d';
+                    ctx.lineWidth = 2;
+                    ctx.beginPath();
+                    ctx.moveTo(cx, 428);
+                    ctx.lineTo(cx + (isMyMinion ? 6 : -6), 422);
+                    ctx.stroke();
+                }
+                ctx.restore();
             });
 
+            // 6. 繪製精緻的投射武器物件外觀
             currentState.entities.projectiles.forEach(p => {
                 let cx = worldToCanvas(p.x);
+                ctx.save();
                 if (p.type === 'knife') {
-                    ctx.fillStyle = '#fff';
-                    ctx.fillRect(cx - 8, 390, 16, 4);
+                    // 飛刀：畫出銀白色刀刃與深色刀柄
+                    ctx.fillStyle = '#ecf0f1';
+                    ctx.fillRect(cx - 10, 385, 14, 5);
+                    ctx.fillStyle = '#e67e22';
+                    ctx.fillRect(cx + 4, 386, 6, 3);
                 } else if (p.type === 'bomb') {
-                    ctx.fillStyle = '#000';
-                    ctx.beginPath();
-                    ctx.arc(cx, 380, 8, 0, Math.PI*2);
-                    ctx.fill();
-                    // 炸彈引信
-                    ctx.fillStyle = 'red';
-                    ctx.fillRect(cx-2, 370, 4, 4);
+                    // 炸彈：畫出黑色圓形彈體、金屬引信頭、與紅色閃爍火花
+                    ctx.fillStyle = '#2c3e50';
+                    ctx.beginPath(); ctx.arc(cx, 385, 10, 0, Math.PI*2); ctx.fill();
+                    ctx.fillStyle = '#7f8c8d';
+                    ctx.fillRect(cx - 2, 372, 4, 4);
+                    // 閃爍點火效果
+                    ctx.fillStyle = (Math.floor(Date.now()/100) % 2 === 0) ? '#e67e22' : '#f1c40f';
+                    ctx.fillRect(cx - 3, 367, 6, 5);
                 } else if (p.type === 'nuke') {
-                    ctx.fillStyle = '#ff00ff';
+                    // 核彈：巨型紫色科技導彈體與鮮黃色輻射危險警告標誌
+                    ctx.fillStyle = '#9b59b6';
+                    ctx.fillRect(cx - 20, 365, 40, 20);
+                    // 導彈尖頭
+                    ctx.fillStyle = '#8e44ad';
                     ctx.beginPath();
-                    ctx.arc(cx, 360, 15, 0, Math.PI*2);
+                    if((p.owner === 1 && mySlot === 1) || (p.owner === 2 && mySlot === 2)) {
+                        ctx.moveTo(cx + 20, 365); ctx.lineTo(cx + 35, 375); ctx.lineTo(cx + 20, 385);
+                    } else {
+                        ctx.moveTo(cx - 20, 365); ctx.lineTo(cx - 35, 375); ctx.lineTo(cx - 20, 385);
+                    }
                     ctx.fill();
-                    ctx.fillStyle = 'yellow';
-                    ctx.font = '10px Arial';
-                    ctx.fillText('☢', cx-4, 364);
+                    // 輻射標誌記號
+                    ctx.fillStyle = '#f1c40f';
+                    ctx.beginPath(); ctx.arc(cx, 375, 5, 0, Math.PI*2); ctx.fill();
                 }
+                ctx.restore();
             });
+
+            // 7. 渲染點擊方塊跳出來的彈出金幣文字特效
+            for (let i = floatingTexts.length - 1; i >= 0; i--) {
+                let ft = floatingTexts[i];
+                ft.y += ft.velocity;
+                ft.alpha -= 0.02; // 每影格淡出
+                
+                ctx.save();
+                ctx.globalAlpha = Math.max(0, ft.alpha);
+                ctx.font = 'bold 22px Arial';
+                ctx.fillStyle = '#ffd700'; // 黃金配色字體
+                ctx.strokeStyle = '#000000';
+                ctx.lineWidth = 3;
+                ctx.strokeText(ft.text, ft.x - 20, ft.y);
+                ctx.fillText(ft.text, ft.x - 20, ft.y);
+                ctx.restore();
+
+                if (ft.alpha <= 0) floatingTexts.splice(i, 1);
+            }
 
             requestAnimationFrame(drawGame);
         }
 
-        // 啟動渲染迴圈
         drawGame();
     </script>
 </body>
